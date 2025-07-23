@@ -2,7 +2,6 @@
 
 A web-based, interactive tool for visualizing and analyzing deforestation in near real-time. Users can select any region on a global map to receive a detailed analysis, including deforestation alerts and comparative satellite imagery.
 
-### ✨ [Live Demo Link (Placeholder)](https://www.google.com/search?q=https://your-live-demo-url.com)
 
 ## 🚀 Key Features
 
