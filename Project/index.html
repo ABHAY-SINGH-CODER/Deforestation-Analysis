@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deforestation Analysis Tool</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- Base Styles & Theme --- */
+        :root {
+            --primary-blue: #0ea5e9; /* sky-500 */
+            --primary-blue-hover: #0284c7; /* sky-600 */
+            --gray-lightest: #f8fafc; /* slate-50 */
+            --gray-light: #f1f5f9;   /* slate-100 */
+            --gray-medium: #64748b;  /* slate-500 */
+            --gray-dark: #1e293b;    /* slate-800 */
+            --text-light: #f1f5f9;
+            --text-dark: #334155;    /* slate-700 */
+            --critical-red: #ef4444;
+            --moderate-yellow: #f59e0b;
+            --border-color: #e2e8f0; /* slate-200 */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+            background-color: var(--gray-lightest);
+            color: var(--text-dark);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- Header --- */
+        header {
+            background-color: white;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        header .logo-icon {
+            width: 2rem;
+            height: 2rem;
+            color: var(--primary-blue);
+        }
+        header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--gray-dark);
+            font-weight: 700;
+        }
+
+        /* --- Main Content --- */
+        main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- Map & Controls --- */
+        #map-container {
+            min-height: 55vh; /* Flexible height */
+            height: 55vh;
+            position: relative;
+            box-shadow: var(--shadow-md);
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        /* --- UI Controls Overlay --- */
+        .ui-controls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 900;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 1rem;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        
+        #instruction-box p {
+            font-weight: 500;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 0.75rem;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            width: 100%;
+        }
+        
+        .btn {
+            color: white;
+            font-weight: 600;
+            padding: 0.6rem 1.2rem;
+            border-radius: 0.5rem;
+            box-shadow: var(--shadow-md);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-grow: 1;
+        }
+        .btn svg { width: 1.25rem; height: 1.25rem; }
+        .btn:hover { transform: translateY(-2px); }
+        .btn:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        #analyze-btn { background-color: var(--primary-blue); }
+        #analyze-btn:hover:not(:disabled) { background-color: var(--primary-blue-hover); box-shadow: var(--shadow-lg); }
+        
+        #clear-btn { background-color: var(--gray-medium); }
+        #clear-btn:hover { background-color: #4b5563; }
+
+        #legend { margin-top: 0.5rem; animation: fadeIn 0.5s ease; }
+        .legend-item { display: flex; align-items: center; }
+        .legend-color-box {
+            width: 1rem; height: 1rem; border-radius: 50%;
+            margin-right: 0.75rem; box-shadow: var(--shadow-sm);
+        }
+        .color-box-critical { background-color: var(--critical-red); }
+        .color-box-moderate { background-color: var(--moderate-yellow); }
+
+        /* --- Analysis Results Section --- */
+        #results-container {
+            flex-grow: 1;
+            padding: 2rem 1.5rem;
+            background-color: var(--gray-light);
+            overflow-y: auto;
+        }
+        #results-wrapper {
+            max-width: 1400px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        #results-wrapper h2 {
+            color: var(--gray-dark);
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+        #results-summary {
+            color: var(--gray-medium);
+            font-size: 1.125rem;
+            margin-bottom: 2rem;
+            min-height: 1.5rem;
+        }
+        #results-placeholder {
+            padding: 4rem 2rem;
+            border: 2px dashed var(--border-color);
+            border-radius: 0.75rem;
+            background-color: white;
+            color: var(--gray-medium);
+        }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        .image-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: var(--shadow-md);
+            overflow: hidden;
+            transition: all 0.3s ease-in-out;
+            text-align: left;
+            opacity: 0; /* For animation */
+            animation: fadeInUp 0.5s ease forwards;
+        }
+        .image-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); }
+        .image-card img { width: 100%; height: auto; display: block; background-color: var(--gray-light); }
+        .image-card-title {
+            font-weight: 600; padding: 1rem 1.25rem; color: var(--text-dark);
+        }
+
+        /* --- Loader --- */
+        #loader {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px); z-index: 1000;
+            display: flex; justify-content: center; align-items: center; flex-direction: column;
+            color: white; opacity: 0; visibility: hidden; transition: all 0.3s ease;
+        }
+        #loader.visible { opacity: 1; visibility: visible; }
+        .spinner {
+            border: 5px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%; border-top-color: #fff;
+            width: 50px; height: 50px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* --- Utility & Leaflet Overrides --- */
+        .hidden { display: none !important; }
+        .leaflet-draw-toolbar a { background-color: white !important; color: var(--gray-dark) !important; }
+    </style>
+</head>
+<body>
+    <header>
+        <svg class="logo-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+        <h1>Deforestation Analysis Tool</h1>
+    </header>
+
+    <main>
+        <div id="map-container">
+            <div id="map"></div>
+            <div id="loader">
+                <div class="spinner"></div>
+                <p style="margin-top: 1rem; font-size: 1.125rem; font-weight: 600;">Analyzing Satellite Data...</p>
+            </div>
+            <div class="ui-controls">
+                <div id="instruction-box">
+                    <p>
+                        <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 2a1 1 0 00-1 1v1h14V3a1 1 0 00-1-1H5zM4 6v10a2 2 0 002 2h8a2 2 0 002-2V6H4z" clip-rule="evenodd"></path></svg>
+                        <span>Select an area using the draw tool.</span>
+                    </p>
+                </div>
+                <div class="action-buttons">
+                    <button id="clear-btn" class="btn hidden">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        Clear
+                    </button>
+                    <button id="analyze-btn" class="btn" disabled>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        Analyze
+                    </button>
+                </div>
+                <div id="legend" class="hidden">
+                    <div class="legend-item">
+                        <div class="legend-color-box color-box-critical"></div>
+                        <span>Critical Loss</span>
+                    </div>
+                    <div class="legend-item" style="margin-top: 0.5rem;">
+                        <div class="legend-color-box color-box-moderate"></div>
+                        <span>Moderate Loss</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="results-container">
+            <div id="results-wrapper">
+                <h2>Analysis Results</h2>
+                <p id="results-summary"></p>
+                <div id="image-grid"></div>
+                <div id="results-placeholder">
+                    <p>Draw an area on the map and click 'Analyze' to see the results here.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    
+    <script>
+        const API_URL = 'https://carboneye-3.onrender.com/analyze-deforestation';
+
+        // DOM Elements
+        const mapElement = document.getElementById('map');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const loader = document.getElementById('loader');
+        const legend = document.getElementById('legend');
+        const instructionBox = document.getElementById('instruction-box');
+        const resultsContainer = document.getElementById('results-container');
+        const imageGrid = document.getElementById('image-grid');
+        const resultsSummary = document.getElementById('results-summary');
+        const resultsPlaceholder = document.getElementById('results-placeholder');
+
+        // Map & Layers Initialization
+        const map = L.map(mapElement).setView([-3.4653, -62.2159], 8);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        }).addTo(map);
+
+        let analysisLayerGroup = L.layerGroup().addTo(map);
+        let drawnItems = new L.FeatureGroup().addTo(map);
+        let selectedBounds = null;
+
+        const drawControl = new L.Control.Draw({
+            draw: {
+                polygon: false, polyline: false, circle: false, marker: false, circlemarker: false,
+                rectangle: { shapeOptions: { color: 'var(--primary-blue)', weight: 3, fillOpacity: 0.1 } }
+            },
+            edit: { featureGroup: drawnItems, remove: false, edit: false }
+        });
+        map.addControl(drawControl);
+
+        // UI State Functions
+        function setLoading(isLoading) {
+            loader.classList.toggle('visible', isLoading);
+        }
+        
+        function clearAll() {
+            drawnItems.clearLayers();
+            analysisLayerGroup.clearLayers();
+            legend.classList.add('hidden');
+            imageGrid.innerHTML = '';
+            resultsSummary.textContent = '';
+            resultsPlaceholder.classList.remove('hidden');
+            selectedBounds = null;
+            analyzeBtn.disabled = true;
+            clearBtn.classList.add('hidden');
+            instructionBox.classList.remove('hidden');
+        }
+
+        // Data Display Functions
+        function displayMarkers(alerts) {
+            if (!alerts || alerts.length === 0) return;
+
+            alerts.forEach(alert => {
+                const markerClass = alert.severity === 'critical' ? 'critical-marker' : 'moderate-marker';
+                L.marker([alert.position.lat, alert.position.lon], { 
+                    icon: L.divIcon({
+                        className: `deforestation-marker ${markerClass}`,
+                        html: `<div style="background-color:${alert.severity === 'critical' ? 'var(--critical-red)' : 'var(--moderate-yellow)'}; width:16px; height:16px; border-radius:50%; border: 2px solid white; box-shadow: var(--shadow-md);"></div>`,
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    })
+                })
+                .bindPopup(`<b>Severity:</b> ${alert.severity}<br><b>Change:</b> ${alert.change}`)
+                .addTo(analysisLayerGroup);
+            });
+            legend.classList.remove('hidden');
+        }
+
+        function displayImageResults(data, animationDelay = 0) {
+            imageGrid.innerHTML = ''; // Clear previous images
+            resultsPlaceholder.classList.add('hidden');
+            const images = [
+                { title: "Today - True Color", src: data.today.trueColor },
+                { title: "Today - NDVI", src: data.today.ndvi },
+                { title: "1 Month Ago - True Color", src: data.past.trueColor },
+                { title: "1 Month Ago - NDVI", src: data.past.ndvi }
+            ];
+
+            images.forEach((img, index) => {
+                const card = document.createElement('div');
+                card.className = 'image-card';
+                card.style.animationDelay = `${index * 100 + animationDelay}ms`;
+                card.innerHTML = `
+                    <img src="${img.src}" alt="${img.title}" loading="lazy">
+                    <div class="image-card-title">${img.title}</div>
+                `;
+                imageGrid.appendChild(card);
+            });
+            
+            // Smoothly scroll to results
+            setTimeout(() => {
+                resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+        
+        function updateSummary(alerts) {
+            if (!alerts) {
+                resultsSummary.textContent = "Analysis complete. No alerts generated.";
+                return;
+            }
+            const criticalCount = alerts.filter(a => a.severity === 'critical').length;
+            const moderateCount = alerts.filter(a => a.severity === 'moderate').length;
+            
+            if (criticalCount === 0 && moderateCount === 0) {
+                 resultsSummary.textContent = "No significant deforestation detected in the selected area.";
+                 return;
+            }
+
+            let summaryText = `Found ${criticalCount} critical and ${moderateCount} moderate deforestation alert(s).`;
+            resultsSummary.textContent = summaryText;
+        }
+
+        // Core Analysis Logic
+        async function handleAnalysis() {
+            if (!selectedBounds) {
+                alert("Please select an area on the map first.");
+                return;
+            }
+
+            setLoading(true);
+            analysisLayerGroup.clearLayers();
+            imageGrid.innerHTML = ''; // Clear grid for loading
+            resultsSummary.textContent = ''; // Clear old summary
+            
+            const bbox = [
+                selectedBounds.getWest(), selectedBounds.getSouth(),
+                selectedBounds.getEast(), selectedBounds.getNorth()
+            ];
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bbox }),
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server Error: ${errorText || response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                updateSummary(data.alerts);
+                displayMarkers(data.alerts);
+                displayImageResults(data);
+
+            } catch (error) {
+                console.error('Analysis Error:', error);
+                resultsSummary.textContent = `Analysis Failed: ${error.message}`;
+                resultsPlaceholder.classList.remove('hidden');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Event Listeners
+        analyzeBtn.addEventListener('click', handleAnalysis);
+        clearBtn.addEventListener('click', clearAll);
+
+        map.on(L.Draw.Event.CREATED, function (event) {
+            clearAll(); // Clear previous state
+            const layer = event.layer;
+            drawnItems.addLayer(layer);
+            selectedBounds = layer.getBounds();
+            analyzeBtn.disabled = false;
+            clearBtn.classList.remove('hidden');
+            instructionBox.classList.add('hidden');
+        });
+    </script>
+</body>
+</html>
